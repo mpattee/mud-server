@@ -20,15 +20,13 @@ import static java.nio.channels.SelectionKey.OP_WRITE;
 public class Socket {
     int id;
     State state;
-    Protocol protocol;
     SocketChannel socketChannel;
     SelectionKey readSelectionKey;
     SelectionKey writeSelectionKey;
     Queue<ByteBuffer> outgoingQueue = new LinkedList<>();
 
-    Socket(SocketChannel socketChannel, Protocol protocol) {
+    Socket(SocketChannel socketChannel) {
         this.id = socketChannel.hashCode();
-        this.protocol = protocol;
         this.socketChannel = socketChannel;
         setState(State.OPEN);
     }
@@ -41,7 +39,7 @@ public class Socket {
     void addReadSelector(Selector selector) {
         try {
             readSelectionKey = socketChannel.register(selector, OP_READ, this);
-            log.debug("Read selector added");
+            log.trace("Socket " + id + " added read selector");
         } catch (ClosedChannelException e) {
             setState(State.CLOSED);
         }
@@ -51,7 +49,7 @@ public class Socket {
         try {
             if (writeSelectionKey == null) {
                 writeSelectionKey = socketChannel.register(selector, OP_WRITE, this);
-                log.debug("Write selector added");
+                log.trace("Socket " + id + " added write selector");
             }
         } catch (ClosedChannelException e) {
             setState(State.CLOSED);
@@ -62,7 +60,7 @@ public class Socket {
         writeSelectionKey.attach(null);
         writeSelectionKey.cancel();
         writeSelectionKey = null;
-        log.debug("Write selector removed");
+        log.trace("Socket " + id + " removed write selector");
     }
 
     void setNonBlockingMode() {
@@ -74,11 +72,16 @@ public class Socket {
         }
     }
 
-    enum State {
-        OPEN, CLOSED
+    void send(ByteBuffer buffer, Selector writeSelector) {
+        ByteBuffer clone = ByteBuffer.allocate(buffer.remaining());
+        clone.put(buffer);
+        buffer.rewind();
+        clone.flip();
+        outgoingQueue.add(clone);
+        addWriteSelector(writeSelector);
     }
 
-    enum Protocol {
-        TELNET
+    enum State {
+        OPEN, CLOSED
     }
 }
